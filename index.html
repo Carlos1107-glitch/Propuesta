@@ -76,8 +76,8 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .letter p{font-style:italic;font-weight:500;font-size:clamp(1.2rem,4.6vw,1.45rem);line-height:1.62;margin-bottom:1.35em;
   opacity:0;transform:translateY(10px);transition:opacity 1.4s ease,transform 1.4s ease}
 .letter p.on{opacity:1;transform:none}
-.ask{text-align:center;opacity:0;transition:opacity 1.6s ease;padding-top:3vh}
-.ask.on{opacity:1}
+.ask{text-align:center;opacity:0;pointer-events:none;transition:opacity 1.6s ease;padding-top:3vh}
+.ask.on{opacity:1;pointer-events:auto}
 .ask h2{font-style:italic;font-weight:600;font-size:clamp(2.2rem,10vw,3.4rem);line-height:1.1;margin-bottom:1.2em}
 .btns{display:flex;gap:18px;justify-content:center;align-items:center;min-height:64px}
 .btn{padding:14px 40px;border-radius:999px;font-size:1.5rem;font-weight:600;border:2px solid var(--seal)}
@@ -85,6 +85,9 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .btn.no{color:var(--seal)}
 .btn.no.run{position:fixed;z-index:20;transition:left .25s,top .25s}
 .skip{position:fixed;right:calc(env(safe-area-inset-right,0px) + 14px);top:calc(env(safe-area-inset-top,0px) + 12px);font-family:var(--hand);font-size:1.3rem;color:var(--muted);padding:8px;z-index:30}
+
+.tap{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);text-align:center;font-family:var(--hand);font-size:1.5rem;color:var(--muted);opacity:0;transition:opacity .8s;pointer-events:none;animation:soft 2s ease-in-out infinite}
+@keyframes soft{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 
 /* ---------- Sí ---------- */
 .yesbox{text-align:center}
@@ -130,6 +133,7 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 
 <section class="scene" id="sLetter">
   <div class="letter" id="letter"></div>
+  <div class="tap" id="tap">Toca la pantalla para continuar</div>
 </section>
 
 <section class="scene" id="sYes">
@@ -220,37 +224,38 @@ let skipped = false;
 function toLetter(){
   if (ended) return; ended = true; clearTimeout(timer);
   go('sLetter');
-  $('skip').style.display = 'block';
   writeLetter();
 }
 async function writeLetter(){
-  const box = $('letter');
+  const box = $('letter'), tap = $('tap'), scene = $('sLetter');
   const els = PARAS.map(t => { const p = document.createElement('p'); p.textContent = t; box.appendChild(p); return p; });
   const ask = document.createElement('div'); ask.className = 'ask';
   ask.innerHTML = '<h2>¿Quieres ser mi novia?</h2><div class="btns" id="btns"><button class="btn yes" id="yes">Sí</button><button class="btn no" id="no">No</button></div>';
   box.appendChild(ask);
   wireAsk();
-  await wait(1300);
-  for (const p of els){
-    if (skipped) break;
-    p.classList.add('on');
-    box.scrollTo({top: p.offsetTop - box.clientHeight * .3});
-    const t = Math.min(Math.max(p.textContent.length * 20, 2600), 8500);
-    await waitSkippable(t);
+  let i = 0, locked = false;
+  function next(){
+    if (locked) return;
+    if (i < els.length){
+      els[i].classList.add('on');
+      box.scrollTo({top: els[i].offsetTop - box.clientHeight * .28});
+      i++;
+      if (i === els.length) tap.textContent = 'Toca una vez más';
+    } else {
+      locked = true;
+      ask.classList.add('on');
+      tap.style.opacity = 0;
+      box.scrollTo({top: ask.offsetTop - box.clientHeight * .25});
+      scene.removeEventListener('click', onTap);
+    }
   }
-  els.forEach(p => p.classList.add('on'));
-  await wait(skipped ? 200 : 1800);
-  ask.classList.add('on');
-  box.scrollTo({top: ask.offsetTop - box.clientHeight * .25});
-  $('skip').style.display = 'none';
+  function onTap(e){ if (e.target.closest('.ask')) return; next(); }
+  await wait(1100);
+  scene.addEventListener('click', onTap);
+  next();
+  await wait(1200);
+  if (!locked) tap.style.opacity = 1;
 }
-function waitSkippable(ms){
-  return new Promise(res => {
-    const t0 = Date.now();
-    const iv = setInterval(() => { if (skipped || Date.now() - t0 >= ms){ clearInterval(iv); res(); } }, 120);
-  });
-}
-$('skip').onclick = () => { skipped = true; };
 
 /* ---- pregunta ---- */
 function wireAsk(){
